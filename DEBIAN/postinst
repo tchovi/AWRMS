@@ -1,0 +1,28 @@
+#!/bin/sh
+set -e
+echo "AWRMS postinst: attempting to create database and import schema..."
+if command -v mysql >/dev/null 2>&1; then
+  mysql <<'SQL'
+CREATE DATABASE IF NOT EXISTS awrms CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+CREATE USER IF NOT EXISTS 'awrms_user'@'localhost' IDENTIFIED BY 'awrms_pass';
+GRANT ALL ON awrms.* TO 'awrms_user'@'localhost';
+FLUSH PRIVILEGES;
+SQL
+  if [ -f /usr/share/awrms/awrms.sql ]; then
+    mysql awrms < /usr/share/awrms/awrms.sql || true
+  fi
+else
+  echo "mysql client not found; please create the awrms database and import /usr/share/awrms/awrms.sql manually."
+fi
+mkdir -p /var/www/html/awrms/media
+chown -R www-data:www-data /var/www/html/awrms || true
+mkdir -p /etc/awrms
+if [ ! -f /etc/awrms/config.php ]; then
+  cp /usr/share/awrms/config.template.php /etc/awrms/config.php || true
+fi
+if [ -f /etc/nginx/sites-available/awrms ]; then
+  ln -sf /etc/nginx/sites-available/awrms /etc/nginx/sites-enabled/awrms || true
+  systemctl reload nginx || /etc/init.d/nginx reload || true
+fi
+echo "AWRMS installation complete. Visit http://<server>/awrms/ and login with admin/admin. Change the password immediately."
+exit 0
